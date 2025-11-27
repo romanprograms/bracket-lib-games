@@ -17,37 +17,38 @@ enum Direction {
     Left,
 }
 
-struct State {
-    game_mode: GameMode,
-    player: Player,
-    frame_time: f32,
-}
-
-struct Player {
-    x: i32,
-    y: i32,
-    velocity: (f32, f32),
-    speed: f32,
-}
-
 struct Food {
     x: i32,
     y: i32,
 }
 
 impl Food {
-    fn new(x: i32, y: i32) -> Self {
+    fn new() -> Self {
+        let x = RandomNumberGenerator::new().range(0, SCREEN_WIDTH);
+        let y = RandomNumberGenerator::new().range(0, SCREEN_HEIGHT);
+
         Food { x, y }
     }
 
+    fn is_snake_collision(&mut self, snake: &Snake) -> bool {
+        self.x == snake.x && self.y == snake.y
+    }
+
     fn render(&mut self, ctx: &mut BTerm) {
-        ctx.set(self.x, self.y, YELLOW, CYAN, to_cp437('☺'))
+        ctx.set(self.x, self.y, RED, BLACK, to_cp437('♥'))
     }
 }
 
-impl Player {
+struct Snake {
+    x: i32,
+    y: i32,
+    velocity: (f32, f32),
+    speed: f32,
+}
+
+impl Snake {
     fn new(x: i32, y: i32, speed: f32) -> Self {
-        Player {
+        Snake {
             x,
             y,
             velocity: (speed, 0.0),
@@ -78,18 +79,28 @@ impl Player {
     }
 }
 
+struct State {
+    game_mode: GameMode,
+    snake: Snake,
+    food: Food,
+    frame_time: f32,
+    score: i32,
+}
+
 impl State {
     fn new() -> Self {
         Self {
             game_mode: GameMode::Menu,
-            player: Player::new(15, 25, 1.0),
+            snake: Snake::new(15, 25, 1.0),
+            food: Food::new(),
             frame_time: 0.0,
+            score: 0,
         }
     }
 
     fn main_menu(&mut self, ctx: &mut BTerm) {
         ctx.cls();
-        ctx.print_centered(5, "Welcome to Flappy Dragon");
+        ctx.print_centered(5, "Welcome to this unknown game");
         ctx.print_centered(8, "(P) Play Game");
         ctx.print_centered(9, "(Q) Quit Game");
 
@@ -105,7 +116,7 @@ impl State {
     fn restart(&mut self) {
         self.game_mode = GameMode::Playing;
         self.frame_time = 0.0;
-        self.player = Player::new(15, 25, 1.0)
+        self.snake = Snake::new(15, 25, 1.0)
     }
 
     fn play(&mut self, ctx: &mut BTerm) {
@@ -113,27 +124,37 @@ impl State {
 
         if let Some(key) = ctx.key {
             match key {
-                VirtualKeyCode::W => self.player.change_direction(Direction::Up),
-                VirtualKeyCode::S => self.player.change_direction(Direction::Down),
-                VirtualKeyCode::D => self.player.change_direction(Direction::Right),
-                VirtualKeyCode::A => self.player.change_direction(Direction::Left),
+                VirtualKeyCode::W => self.snake.change_direction(Direction::Up),
+                VirtualKeyCode::S => self.snake.change_direction(Direction::Down),
+                VirtualKeyCode::D => self.snake.change_direction(Direction::Right),
+                VirtualKeyCode::A => self.snake.change_direction(Direction::Left),
                 VirtualKeyCode::Q => self.game_mode = GameMode::End,
                 _ => {}
             }
         }
 
         self.frame_time += ctx.frame_time_ms;
+
         if self.frame_time > FRAME_DURATION {
             self.frame_time = 0.0;
 
-            self.player.slither();
+            self.snake.slither();
         }
 
-        self.player.render(ctx);
+        self.snake.render(ctx);
 
-        if self.player.is_wall_collision() {
+        self.food.render(ctx);
+
+        if self.food.is_snake_collision(&self.snake) {
+            self.score += 1;
+            self.food = Food::new();
+        }
+
+        if self.snake.is_wall_collision() {
             self.game_mode = GameMode::End;
         }
+
+        ctx.print(0, 0, &format!("Score: {}", self.score));
     }
 
     fn dead(&mut self, ctx: &mut BTerm) {
@@ -153,7 +174,7 @@ impl GameState for State {
 
 fn main() -> BError {
     let context = BTermBuilder::simple80x50()
-        .with_title("Ascii Snake")
+        .with_title("Some Game")
         .build()?;
 
     main_loop(context, State::new())

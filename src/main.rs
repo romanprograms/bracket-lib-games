@@ -32,7 +32,7 @@ impl Food {
     }
 
     fn is_snake_collision(&mut self, snake: &Snake) -> bool {
-        self.x == snake.x && self.y == snake.y
+        self.x == snake.head_pos_x && self.y == snake.head_pos_y
     }
 
     fn render(&mut self, ctx: &mut BTerm) {
@@ -41,44 +41,44 @@ impl Food {
 }
 
 struct Snake {
-    x: i32,
-    y: i32,
-    velocity: (f32, f32),
+    head_pos_x: i32,
+    head_pos_y: i32,
+    direction_unit_vector: (f32, f32),
     speed: f32,
     body: Vec<(i32, i32)>,
     ghost_tail: (i32, i32),
 }
 
 impl Snake {
-    fn new(x: i32, y: i32, speed: f32) -> Self {
+    fn new(head_pos_x: i32, head_pos_y: i32 ) -> Self {
         Snake {
-            x,
-            y,
-            velocity: (speed, 0.0),
-            speed,
+            head_pos_x,
+            head_pos_y,
+            direction_unit_vector: (1.0, 0.0),
+            speed: 1.0,
             body: Vec::from([]),
-            ghost_tail: (x, y),
+            ghost_tail: (head_pos_x, head_pos_y),
         }
     }
 
     fn change_direction(&mut self, direction: Direction) {
-        self.velocity = match direction {
-            Direction::Up => (0.0, -self.speed),
-            Direction::Down => (0.0, self.speed),
-            Direction::Right => (self.speed, 0.0),
-            Direction::Left => (-self.speed, 0.0),
+        self.direction_unit_vector = match direction {
+            Direction::Up => (0.0, -1.0),
+            Direction::Down => (0.0, 1.0),
+            Direction::Right => (1.0, 0.0),
+            Direction::Left => (-1.0, 0.0),
         };
     }
 
     fn is_wall_collision(&mut self) -> bool {
-        self.x < 0 || self.x > SCREEN_WIDTH || self.y < 0 || self.y > SCREEN_HEIGHT
+        self.head_pos_x < 0 || self.head_pos_x > SCREEN_WIDTH || self.head_pos_y < 0 || self.head_pos_y > SCREEN_HEIGHT
     }
 
     fn is_self_collision(&mut self) -> bool {
         match self
             .body
             .iter()
-            .find(|body_part| body_part.0 == self.x && body_part.1 == self.y)
+            .find(|body_part| body_part.0 == self.head_pos_x && body_part.1 == self.head_pos_y)
         {
             Some(_) => true,
             None => false,
@@ -95,13 +95,13 @@ impl Snake {
                 self.body[i].0 = self.body[i - 1].0;
                 self.body[i].1 = self.body[i - 1].1;
             } else {
-                self.body[0].0 = self.x;
-                self.body[0].1 = self.y;
+                self.body[0].0 = self.head_pos_x;
+                self.body[0].1 = self.head_pos_y;
             }
         }
 
-        self.x += self.velocity.0 as i32;
-        self.y += self.velocity.1 as i32;
+        self.head_pos_x += (self.direction_unit_vector.0 * self.speed) as i32;
+        self.head_pos_y += (self.direction_unit_vector.1 * self.speed) as i32;
     }
 
     fn grow(&mut self) {
@@ -109,7 +109,7 @@ impl Snake {
     }
 
     fn render(&mut self, ctx: &mut BTerm) {
-        ctx.set(self.x, self.y, YELLOW, BLACK, to_cp437('@'));
+        ctx.set(self.head_pos_x, self.head_pos_y, YELLOW, BLACK, to_cp437('@'));
         self.body
             .iter()
             .for_each(|body_part| ctx.set(body_part.0, body_part.1, YELLOW, BLACK, to_cp437('■')))
@@ -128,7 +128,7 @@ impl State {
     fn new() -> Self {
         Self {
             game_mode: GameMode::Menu,
-            snake: Snake::new(15, 25, 1.0),
+            snake: Snake::new(15, 25 ),
             food: Food::new(),
             frame_time: 0.0,
             score: 0,
@@ -153,7 +153,7 @@ impl State {
     fn restart(&mut self) {
         self.game_mode = GameMode::Playing;
         self.frame_time = 0.0;
-        self.snake = Snake::new(15, 25, 1.0)
+        self.snake = Snake::new(15, 25)
     }
 
     fn play(&mut self, ctx: &mut BTerm) {

@@ -3,6 +3,7 @@ use bracket_lib::prelude::*;
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 const FRAME_DURATION: f32 = 75.0;
+const SNAKE_INITIAL_BODY_SIZE: i32 = 5;
 
 enum GameMode {
     Menu,
@@ -22,10 +23,22 @@ struct Food {
     y: i32,
 }
 
+fn get_initial_body_cells_from_size(head_pos_x: i32, head_pos_y: i32, size: i32) -> Vec<(i32, i32)> {
+    let mut body_cells = Vec::new();
+    for i in 0..size {
+        body_cells.push((head_pos_x - (i + 1), head_pos_y))
+    }
+
+    body_cells
+}
+
 impl Food {
     fn new() -> Self {
         let mut random = RandomNumberGenerator::new();
-        Food { x: random.range(0, SCREEN_WIDTH), y : random.range(0, SCREEN_HEIGHT)}
+        Food {
+            x: random.range(0, SCREEN_WIDTH),
+            y: random.range(0, SCREEN_HEIGHT),
+        }
     }
 
     fn is_snake_collision(&mut self, snake: &Snake) -> bool {
@@ -47,14 +60,16 @@ struct Snake {
 }
 
 impl Snake {
-    fn new(head_pos_x: i32, head_pos_y: i32 ) -> Self {
+    fn new(head_pos_x: i32, head_pos_y: i32) -> Self {
         Snake {
             head_pos_x,
             head_pos_y,
             direction_unit_vector: (1.0, 0.0),
             speed: 1.0,
-            body_cells: Vec::from([]),
-            ghost_tail: (head_pos_x, head_pos_y),
+            body_cells: get_initial_body_cells_from_size(head_pos_x, head_pos_y, SNAKE_INITIAL_BODY_SIZE),
+
+            // last position of tail cell
+            ghost_tail: (head_pos_x - 5, head_pos_y),
         }
     }
 
@@ -68,7 +83,10 @@ impl Snake {
     }
 
     fn is_wall_collision(&mut self) -> bool {
-        self.head_pos_x < 0 || self.head_pos_x > SCREEN_WIDTH || self.head_pos_y < 0 || self.head_pos_y > SCREEN_HEIGHT
+        self.head_pos_x < 0
+            || self.head_pos_x > SCREEN_WIDTH
+            || self.head_pos_y < 0
+            || self.head_pos_y > SCREEN_HEIGHT
     }
 
     fn is_self_collision(&mut self) -> bool {
@@ -102,11 +120,17 @@ impl Snake {
     }
 
     fn grow(&mut self) {
-        self.body_cells.push((self.ghost_tail.0, self.ghost_tail.1))
+        self.body_cells.push((self.ghost_tail.0, self.ghost_tail.1));
     }
 
     fn render(&mut self, ctx: &mut BTerm) {
-        ctx.set(self.head_pos_x, self.head_pos_y, YELLOW, BLACK, to_cp437('@'));
+        ctx.set(
+            self.head_pos_x,
+            self.head_pos_y,
+            YELLOW,
+            BLACK,
+            to_cp437('@'),
+        );
         self.body_cells
             .iter()
             .for_each(|body_cell| ctx.set(body_cell.0, body_cell.1, YELLOW, BLACK, to_cp437('■')))
@@ -125,7 +149,7 @@ impl State {
     fn new() -> Self {
         Self {
             game_mode: GameMode::Menu,
-            snake: Snake::new(15, 25 ),
+            snake: Snake::new(15, 25),
             food: Food::new(),
             frame_time: 0.0,
             score: 0,

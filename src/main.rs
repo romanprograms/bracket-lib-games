@@ -25,10 +25,7 @@ struct Food {
 impl Food {
     fn new() -> Self {
         let mut random = RandomNumberGenerator::new();
-        let x = random.range(0, SCREEN_WIDTH);
-        let y = random.range(0, SCREEN_HEIGHT);
-
-        Food { x, y }
+        Food { x: random.range(0, SCREEN_WIDTH), y : random.range(0, SCREEN_HEIGHT)}
     }
 
     fn is_snake_collision(&mut self, snake: &Snake) -> bool {
@@ -45,7 +42,7 @@ struct Snake {
     head_pos_y: i32,
     direction_unit_vector: (f32, f32),
     speed: f32,
-    body: Vec<(i32, i32)>,
+    body_cells: Vec<(i32, i32)>,
     ghost_tail: (i32, i32),
 }
 
@@ -56,7 +53,7 @@ impl Snake {
             head_pos_y,
             direction_unit_vector: (1.0, 0.0),
             speed: 1.0,
-            body: Vec::from([]),
+            body_cells: Vec::from([]),
             ghost_tail: (head_pos_x, head_pos_y),
         }
     }
@@ -76,9 +73,9 @@ impl Snake {
 
     fn is_self_collision(&mut self) -> bool {
         match self
-            .body
+            .body_cells
             .iter()
-            .find(|body_part| body_part.0 == self.head_pos_x && body_part.1 == self.head_pos_y)
+            .find(|body_cell| body_cell.0 == self.head_pos_x && body_cell.1 == self.head_pos_y)
         {
             Some(_) => true,
             None => false,
@@ -86,17 +83,17 @@ impl Snake {
     }
 
     fn slither(&mut self) {
-        if let Some(last) = self.body.last() {
+        if let Some(last) = self.body_cells.last() {
             self.ghost_tail = (last.0, last.1);
         }
 
-        for i in (0..self.body.len()).rev() {
+        for i in (0..self.body_cells.len()).rev() {
             if i != 0 {
-                self.body[i].0 = self.body[i - 1].0;
-                self.body[i].1 = self.body[i - 1].1;
+                self.body_cells[i].0 = self.body_cells[i - 1].0;
+                self.body_cells[i].1 = self.body_cells[i - 1].1;
             } else {
-                self.body[0].0 = self.head_pos_x;
-                self.body[0].1 = self.head_pos_y;
+                self.body_cells[0].0 = self.head_pos_x;
+                self.body_cells[0].1 = self.head_pos_y;
             }
         }
 
@@ -105,14 +102,14 @@ impl Snake {
     }
 
     fn grow(&mut self) {
-        self.body.push((self.ghost_tail.0, self.ghost_tail.1))
+        self.body_cells.push((self.ghost_tail.0, self.ghost_tail.1))
     }
 
     fn render(&mut self, ctx: &mut BTerm) {
         ctx.set(self.head_pos_x, self.head_pos_y, YELLOW, BLACK, to_cp437('@'));
-        self.body
+        self.body_cells
             .iter()
-            .for_each(|body_part| ctx.set(body_part.0, body_part.1, YELLOW, BLACK, to_cp437('■')))
+            .for_each(|body_cell| ctx.set(body_cell.0, body_cell.1, YELLOW, BLACK, to_cp437('■')))
     }
 }
 

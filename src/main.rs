@@ -44,6 +44,7 @@ struct Snake {
     y: i32,
     velocity: (f32, f32),
     speed: f32,
+    body: Vec<(i32, i32, (f32, f32))>,
 }
 
 impl Snake {
@@ -53,6 +54,16 @@ impl Snake {
             y,
             velocity: (speed, 0.0),
             speed,
+            body: Vec::from([
+                (14, 25, (speed, 0.0)),
+                (13, 25, (speed, 0.0)),
+                (12, 25, (speed, 0.0)),
+                (11, 25, (speed, 0.0)),
+                (10, 25, (speed, 0.0)),
+                (9, 25, (speed, 0.0)),
+                (8, 25, (speed, 0.0)),
+                (7, 25, (speed, 0.0)),
+            ]),
         }
     }
 
@@ -70,12 +81,27 @@ impl Snake {
     }
 
     fn slither(&mut self) {
+        for i in (0..self.body.len()).rev() {
+            if i != 0 {
+                self.body[i].0 = self.body[i - 1].0;
+                self.body[i].1 = self.body[i - 1].1;
+            } else {
+                self.body[0].0 = self.x;
+                self.body[0].1 = self.y;
+            }
+        }
+
         self.x += self.velocity.0 as i32;
         self.y += self.velocity.1 as i32;
     }
 
+    fn grow(&mut self) {}
+
     fn render(&mut self, ctx: &mut BTerm) {
         ctx.set(self.x, self.y, YELLOW, BLACK, to_cp437('@'));
+        self.body
+            .iter()
+            .for_each(|body_part| ctx.set(body_part.0, body_part.1, YELLOW, BLACK, to_cp437('■')))
     }
 }
 

@@ -24,8 +24,9 @@ struct Food {
 
 impl Food {
     fn new() -> Self {
-        let x = RandomNumberGenerator::new().range(0, SCREEN_WIDTH);
-        let y = RandomNumberGenerator::new().range(0, SCREEN_HEIGHT);
+        let mut random = RandomNumberGenerator::new();
+        let x = random.range(0, SCREEN_WIDTH);
+        let y = random.range(0, SCREEN_HEIGHT);
 
         Food { x, y }
     }
@@ -44,7 +45,8 @@ struct Snake {
     y: i32,
     velocity: (f32, f32),
     speed: f32,
-    body: Vec<(i32, i32, (f32, f32))>,
+    body: Vec<(i32, i32)>,
+    ghost_tail: (i32, i32),
 }
 
 impl Snake {
@@ -54,16 +56,8 @@ impl Snake {
             y,
             velocity: (speed, 0.0),
             speed,
-            body: Vec::from([
-                (14, 25, (speed, 0.0)),
-                (13, 25, (speed, 0.0)),
-                (12, 25, (speed, 0.0)),
-                (11, 25, (speed, 0.0)),
-                (10, 25, (speed, 0.0)),
-                (9, 25, (speed, 0.0)),
-                (8, 25, (speed, 0.0)),
-                (7, 25, (speed, 0.0)),
-            ]),
+            body: Vec::from([]),
+            ghost_tail: (x, y),
         }
     }
 
@@ -80,7 +74,22 @@ impl Snake {
         self.x < 0 || self.x > SCREEN_WIDTH || self.y < 0 || self.y > SCREEN_HEIGHT
     }
 
+    fn is_self_collision(&mut self) -> bool {
+        match self
+            .body
+            .iter()
+            .find(|body_part| body_part.0 == self.x && body_part.1 == self.y)
+        {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
     fn slither(&mut self) {
+        if let Some(last) = self.body.last() {
+            self.ghost_tail = (last.0, last.1);
+        }
+
         for i in (0..self.body.len()).rev() {
             if i != 0 {
                 self.body[i].0 = self.body[i - 1].0;
@@ -95,7 +104,9 @@ impl Snake {
         self.y += self.velocity.1 as i32;
     }
 
-    fn grow(&mut self) {}
+    fn grow(&mut self) {
+        self.body.push((self.ghost_tail.0, self.ghost_tail.1))
+    }
 
     fn render(&mut self, ctx: &mut BTerm) {
         ctx.set(self.x, self.y, YELLOW, BLACK, to_cp437('@'));
@@ -174,9 +185,10 @@ impl State {
         if self.food.is_snake_collision(&self.snake) {
             self.score += 1;
             self.food = Food::new();
+            self.snake.grow();
         }
 
-        if self.snake.is_wall_collision() {
+        if self.snake.is_wall_collision() || self.snake.is_self_collision() {
             self.game_mode = GameMode::End;
         }
 
@@ -200,7 +212,7 @@ impl GameState for State {
 
 fn main() -> BError {
     let context = BTermBuilder::simple80x50()
-        .with_title("Some Game")
+        .with_title("Ascii Snake Game")
         .build()?;
 
     main_loop(context, State::new())

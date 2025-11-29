@@ -5,6 +5,8 @@ const SCREEN_HEIGHT: u32 = 800;
 const TILE_W: u32 = 8;
 const TILE_H: u32 = 8;
 const SPRITE_TILE_SIZE: i32 = 40;
+const DEFAULT_SNAKE_LENGTH: i32 = 5;
+// TODO:
 // const FRAME_DURATION: f32 = 75.0;
 
 enum Direction {
@@ -45,111 +47,120 @@ impl Food {
     }
 }
 
+struct DirectionVector {
+    x: i32,
+    y: i32,
+}
+
 struct SnakePart {
     x: i32,
     y: i32,
-    direction_vector: (i32, i32),
+    direction_vector: DirectionVector,
 }
 
 struct Snake {
     head_pos_x: i32,
     head_pos_y: i32,
-    direction_unit_vector: (i32, i32),
     speed: i32,
-    // speed: f32,
-    
     snake_parts: Vec<SnakePart>,
     snake_tiles: SnakeParts,
-    direction: Direction,
 }
-
-
 
 impl Snake {
     fn new(head_pos_x: i32, head_pos_y: i32) -> Self {
-      let mut snake_parts = Vec::new();
-      snake_parts.push(SnakePart {
-          x: head_pos_x,
-          y: head_pos_y,
-          direction_vector: (1, 0),
-      });
-
         Snake {
             head_pos_x,
             head_pos_y,
-            snake_parts,
-            direction_unit_vector: (1, 0),
-            speed: 9,
-            // speed: 1.0,
+            snake_parts: (0..DEFAULT_SNAKE_LENGTH)
+                .map(|i| SnakePart {
+                    x: head_pos_x - i * 40,
+                    y: head_pos_y,
+                    direction_vector: DirectionVector { x: 1, y: 0 },
+                })
+                .collect(),
+            speed: 5,
             snake_tiles: SnakeParts::new(),
-            direction: Direction::Right,
         }
     }
 
     fn change_direction(&mut self, direction: Direction) {
-        self.direction_unit_vector = match direction {
-            Direction::Up => (0, -1),
-            Direction::Down => (0, 1),
-            Direction::Left => (-1, 0),
-            Direction::Right => (1, 0),
+        self.snake_parts[0].direction_vector = match direction {
+            Direction::Up => DirectionVector { x: 0, y: -1 },
+            Direction::Down => DirectionVector { x: 0, y: 1 },
+            Direction::Left => DirectionVector { x: -1, y: 0 },
+            Direction::Right => DirectionVector { x: 1, y: 0 },
         };
-
-        self.direction = direction;
-        self.snake_parts[0].direction_vector = self.direction_unit_vector;
     }
 
     fn slither(&mut self) {
-        self.head_pos_x += self.direction_unit_vector.0 * self.speed;
-        self.head_pos_y += self.direction_unit_vector.1 * self.speed;
+        for (index) in (0..self.snake_parts.len()).rev() {
+            if index != 0 {
+                self.snake_parts[index].direction_vector.x =
+                    self.snake_parts[index - 1].direction_vector.x;
+                self.snake_parts[index].direction_vector.y =
+                    self.snake_parts[index - 1].direction_vector.y;
+            }
+        }
+
+        self.snake_parts.iter_mut().for_each(|part| {
+            part.x += part.direction_vector.x * self.speed;
+            part.y += part.direction_vector.y * self.speed;
+        });
+
+        // if let Some(head) = self.snake_parts.first() {
+        //     self.snake_parts[0].x += self.direction_unit_vector.0 * self.speed;
+        //     self.snake_parts[0].y += self.direction_unit_vector.1 * self.speed;
+        // }
     }
 
-    fn grow(&mut self) {
-      // grow snake body logic here 
-      if let Some(last_part) = self.snake_parts.last() {
-          self.snake_parts.push(SnakePart {
-              x: last_part.x - last_part.direction_vector.0 * self.speed,
-              y: last_part.y - last_part.direction_vector.1 * self.speed,
-              direction_vector: last_part.direction_vector,
-          });
-      }
-    }
+    fn grow(&mut self) {}
 
     fn render(&mut self, ctx: &mut BTerm) {
         // snake body will consist of pieces {x: i32,y: i32, direction_vector(i32,i32)}
         // each piece will have a sprite depending on direction vector and next piece direction vector
         // if no next piece, use head sprite depending on direction vector
-        // if next piece has same direction vector, use straight body sprite 
+        // if next piece has same direction vector, use straight body sprite
         // if next piece has different direction vector, use corner body sprite depending on both direction vectors
-        let sprite_index = match self.direction {
-            Direction::Right => self.snake_tiles.head_right.index,
-            Direction::Left => self.snake_tiles.head_left.index,
-            Direction::Up => self.snake_tiles.head_up.index,
-            Direction::Down => self.snake_tiles.head_down.index,
-        };
+        // let sprite_index = match self.direction {
+        //     Direction::Right => self.snake_tiles.head_right.index,
+        //     Direction::Left => self.snake_tiles.head_left.index,
+        //     Direction::Up => self.snake_tiles.head_up.index,
+        //     Direction::Down => self.snake_tiles.head_down.index,
+        // };
+        //
+        for (index, part) in self.snake_parts.iter().enumerate().rev() {
+            let is_tail = index == self.snake_parts.len() - 1;
+            let is_head = index == 0;
 
-        self.snake_parts.iter().skip(1).for_each(|part| {
-            ctx.add_sprite(
-                Rect::with_size(part.x , part.y , 40, 40),
-                400,
-                RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
-                // determine sprite index based on direction vector and next part direction vector
-                match part.direction_vector {
-                    (0, -1) | (0, 1) => self.snake_tiles.body_vertical.index,
-                    (1, 0) | (-1, 0) => self.snake_tiles.body_horizontal.index,
-                    _ => self.snake_tiles.body_horizontal.index, // placeholder for corner pieces
-                },
-            );
-        });
-
-        ctx.add_sprite(
-            Rect::with_size(self.head_pos_x , self.head_pos_y , 40, 40),
-            400,
-            RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
-            sprite_index, // self.frame % 4,
-        );
+            if is_head {
+                let sprite_index = match part.direction_vector {
+                    DirectionVector { x: 1, y: 0 } => self.snake_tiles.head_right.index,
+                    DirectionVector { x: -1, y: 0 } => self.snake_tiles.head_left.index,
+                    DirectionVector { x: 0, y: -1 } => self.snake_tiles.head_up.index,
+                    DirectionVector { x: 0, y: 1 } => self.snake_tiles.head_down.index,
+                    _ => 0,
+                };
+                ctx.add_sprite(
+                    Rect::with_size(part.x, part.y, 40, 40),
+                    400,
+                    RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
+                    // determine sprite index based on direction vector and next part direction vector
+                    sprite_index,
+                );
+            } else {
+                ctx.add_sprite(
+                    Rect::with_size(part.x, part.y, 40, 40),
+                    400,
+                    RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
+                    // determine sprite index based on direction vector and next part direction vector
+                    1,
+                );
+            }
+        }
     }
 }
 
+//  TODO:
 // enum GameMode {
 //   Playing,
 //   End,

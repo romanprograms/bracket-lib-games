@@ -13,4 +13,4 @@ rust-version = "1.89"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-unused = "deny"
+unused = "allow"

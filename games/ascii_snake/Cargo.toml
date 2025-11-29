@@ -1,0 +1,10 @@
+[package]
+name = "ascii_snake"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bracket-lib = "~0.8.1"
+
+[lints]
+workspace = true

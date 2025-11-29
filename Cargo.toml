@@ -1,7 +1,16 @@
-[package]
-name = "bracket-lib-games"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = [
+  "games/*",
+]
 
-[dependencies]
-bracket-lib = "~0.8.1"
+default-members = ["games/ascii_snake", "games/snake", "games/sprites_example"]
+
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.89"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused = "deny"

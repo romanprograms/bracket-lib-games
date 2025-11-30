@@ -1,11 +1,13 @@
+use std::unreachable;
+
 use bracket_lib::prelude::*;
 
-const SCREEN_WIDTH: u32 = 1200;
-const SCREEN_HEIGHT: u32 = 800;
+const SCREEN_WIDTH: u32 = 1800;
+const SCREEN_HEIGHT: u32 = 1200;
 const TILE_W: u32 = 8;
 const TILE_H: u32 = 8;
 const SPRITE_TILE_SIZE: i32 = 40;
-const DEFAULT_SNAKE_LENGTH: i32 = 5;
+const DEFAULT_SNAKE_LENGTH: i32 = 3;
 // TODO:
 // const FRAME_DURATION: f32 = 75.0;
 
@@ -23,6 +25,17 @@ fn rects_overlap(ax: i32, ay: i32, aw: i32, ah: i32, bx: i32, by: i32, bw: i32, 
       ay >= by + bh) // A is completely below B
 }
 
+fn direction_between(a: &SnakePart, b: &SnakePart) -> Direction {
+    match (b.x.cmp(&a.x), b.y.cmp(&a.y)) {
+        (std::cmp::Ordering::Greater, std::cmp::Ordering::Equal) => Direction::Right,
+        (std::cmp::Ordering::Less, std::cmp::Ordering::Equal) => Direction::Left,
+
+        (std::cmp::Ordering::Equal, std::cmp::Ordering::Greater) => Direction::Down,
+        (std::cmp::Ordering::Equal, std::cmp::Ordering::Less) => Direction::Up,
+        _ => unreachable!("Won't reach this code"),
+    }
+}
+
 struct Food {
     pos_x: i32,
     pos_y: i32,
@@ -30,7 +43,6 @@ struct Food {
 
 impl Food {
     fn new() -> Self {
-        // Self { pos_x: 0, pos_y: 0 }
         Self {
             pos_x: RandomNumberGenerator::new().range(0, SCREEN_WIDTH as i32 - SPRITE_TILE_SIZE),
             pos_y: RandomNumberGenerator::new().range(0, SCREEN_HEIGHT as i32 - SPRITE_TILE_SIZE),
@@ -39,10 +51,15 @@ impl Food {
 
     fn render(&mut self, ctx: &mut BTerm) {
         ctx.add_sprite(
-            Rect::with_size(self.pos_x as i32, self.pos_y as i32, 40, 40),
+            Rect::with_size(
+                self.pos_x as i32,
+                self.pos_y as i32,
+                SPRITE_TILE_SIZE,
+                SPRITE_TILE_SIZE,
+            ),
             400,
             RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
-            14, // self.frame % 4,
+            14,
         );
     }
 }
@@ -55,13 +72,11 @@ struct DirectionVector {
 struct SnakePart {
     x: i32,
     y: i32,
-    direction_vector: DirectionVector,
 }
 
 struct Snake {
-    head_pos_x: i32,
-    head_pos_y: i32,
     speed: i32,
+    direction_vector: DirectionVector,
     snake_parts: Vec<SnakePart>,
     snake_tiles: SnakeParts,
 }
@@ -69,22 +84,20 @@ struct Snake {
 impl Snake {
     fn new(head_pos_x: i32, head_pos_y: i32) -> Self {
         Snake {
-            head_pos_x,
-            head_pos_y,
             snake_parts: (0..DEFAULT_SNAKE_LENGTH)
                 .map(|i| SnakePart {
-                    x: head_pos_x - i * 40,
+                    x: head_pos_x - i * SPRITE_TILE_SIZE,
                     y: head_pos_y,
-                    direction_vector: DirectionVector { x: 1, y: 0 },
                 })
                 .collect(),
-            speed: 5,
+            direction_vector: DirectionVector { x: 1, y: 0 },
+            speed: SPRITE_TILE_SIZE,
             snake_tiles: SnakeParts::new(),
         }
     }
 
     fn change_direction(&mut self, direction: Direction) {
-        self.snake_parts[0].direction_vector = match direction {
+        self.direction_vector = match direction {
             Direction::Up => DirectionVector { x: 0, y: -1 },
             Direction::Down => DirectionVector { x: 0, y: 1 },
             Direction::Left => DirectionVector { x: -1, y: 0 },
@@ -93,67 +106,118 @@ impl Snake {
     }
 
     fn slither(&mut self) {
-        for (index) in (0..self.snake_parts.len()).rev() {
-            if index != 0 {
-                self.snake_parts[index].direction_vector.x =
-                    self.snake_parts[index - 1].direction_vector.x;
-                self.snake_parts[index].direction_vector.y =
-                    self.snake_parts[index - 1].direction_vector.y;
-            }
+        if self.speed == 0 {
+            return;
         }
 
-        self.snake_parts.iter_mut().for_each(|part| {
-            part.x += part.direction_vector.x * self.speed;
-            part.y += part.direction_vector.y * self.speed;
-        });
+        let new_head = SnakePart {
+            x: self.snake_parts[0].x + self.direction_vector.x * self.speed,
+            y: self.snake_parts[0].y + self.direction_vector.y * self.speed,
+        };
 
-        // if let Some(head) = self.snake_parts.first() {
-        //     self.snake_parts[0].x += self.direction_unit_vector.0 * self.speed;
-        //     self.snake_parts[0].y += self.direction_unit_vector.1 * self.speed;
-        // }
+        self.snake_parts.insert(0, new_head);
+        self.snake_parts.pop();
     }
 
-    fn grow(&mut self) {}
+    fn grow(&mut self) {
+        let new_head = SnakePart {
+            x: self.snake_parts[0].x + self.direction_vector.x * self.speed,
+            y: self.snake_parts[0].y + self.direction_vector.y * self.speed,
+        };
+
+        self.snake_parts.insert(0, new_head);
+    }
 
     fn render(&mut self, ctx: &mut BTerm) {
-        // snake body will consist of pieces {x: i32,y: i32, direction_vector(i32,i32)}
-        // each piece will have a sprite depending on direction vector and next piece direction vector
-        // if no next piece, use head sprite depending on direction vector
-        // if next piece has same direction vector, use straight body sprite
-        // if next piece has different direction vector, use corner body sprite depending on both direction vectors
-        // let sprite_index = match self.direction {
-        //     Direction::Right => self.snake_tiles.head_right.index,
-        //     Direction::Left => self.snake_tiles.head_left.index,
-        //     Direction::Up => self.snake_tiles.head_up.index,
-        //     Direction::Down => self.snake_tiles.head_down.index,
-        // };
-        //
-        for (index, part) in self.snake_parts.iter().enumerate().rev() {
+        for (index, part) in self.snake_parts.iter().enumerate() {
             let is_tail = index == self.snake_parts.len() - 1;
             let is_head = index == 0;
 
-            if is_head {
-                let sprite_index = match part.direction_vector {
+            if (is_head) {
+                let sprite_index = match self.direction_vector {
                     DirectionVector { x: 1, y: 0 } => self.snake_tiles.head_right.index,
+                    DirectionVector { x: 0, y: 1 } => self.snake_tiles.head_down.index,
                     DirectionVector { x: -1, y: 0 } => self.snake_tiles.head_left.index,
                     DirectionVector { x: 0, y: -1 } => self.snake_tiles.head_up.index,
-                    DirectionVector { x: 0, y: 1 } => self.snake_tiles.head_down.index,
-                    _ => 0,
+                    _ => 14,
                 };
+
                 ctx.add_sprite(
-                    Rect::with_size(part.x, part.y, 40, 40),
+                    Rect::with_size(part.x, part.y, SPRITE_TILE_SIZE, SPRITE_TILE_SIZE),
                     400,
                     RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
-                    // determine sprite index based on direction vector and next part direction vector
+                    sprite_index,
+                );
+            } else if (is_tail) {
+                let next_part = &self.snake_parts[index - 1];
+
+                let sprite_index = match (next_part.x.cmp(&part.x), next_part.y.cmp(&part.y)) {
+                    (std::cmp::Ordering::Greater, std::cmp::Ordering::Equal) => {
+                        self.snake_tiles.tail_left.index
+                    }
+
+                    (std::cmp::Ordering::Less, std::cmp::Ordering::Equal) => {
+                        self.snake_tiles.tail_right.index
+                    }
+
+                    (std::cmp::Ordering::Equal, std::cmp::Ordering::Greater) => {
+                        self.snake_tiles.tail_up.index
+                    }
+                    (std::cmp::Ordering::Equal, std::cmp::Ordering::Less) => {
+                        self.snake_tiles.tail_down.index
+                    }
+                    _ => 14,
+                };
+
+                ctx.add_sprite(
+                    Rect::with_size(part.x, part.y, SPRITE_TILE_SIZE, SPRITE_TILE_SIZE),
+                    400,
+                    RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
                     sprite_index,
                 );
             } else {
+                let next = &self.snake_parts[index - 1];
+                let prev = &self.snake_parts[index + 1];
+
+                let from_prev = direction_between(prev, part);
+                let to_next = direction_between(part, next);
+
+                let sprite_index = match (from_prev, to_next) {
+                    (Direction::Up, Direction::Down)
+                    | (Direction::Down, Direction::Up)
+                    | (Direction::Up, Direction::Up)
+                    | (Direction::Down, Direction::Down) => self.snake_tiles.body_vertical.index,
+
+                    (Direction::Left, Direction::Right)
+                    | (Direction::Right, Direction::Left)
+                    | (Direction::Right, Direction::Right)
+                    | (Direction::Left, Direction::Left) => self.snake_tiles.body_horizontal.index,
+
+                    // Corners
+                    (Direction::Up, Direction::Right) | (Direction::Left, Direction::Down) => {
+                        self.snake_tiles.body_bottomright.index
+                    }
+
+                    (Direction::Up, Direction::Left) | (Direction::Right, Direction::Down) => {
+                        self.snake_tiles.body_bottomleft.index
+                    }
+
+                    (Direction::Right, Direction::Up) | (Direction::Down, Direction::Left) => {
+                        self.snake_tiles.body_topleft.index
+                    }
+
+                    (Direction::Down, Direction::Right) | (Direction::Left, Direction::Up) => {
+                        self.snake_tiles.body_topright.index
+                    }
+
+                    _ => unreachable!("straight segments already handled"),
+                };
+
                 ctx.add_sprite(
                     Rect::with_size(part.x, part.y, 40, 40),
                     400,
                     RGBA::from_f32(1.0, 1.0, 1.0, 1.0),
-                    // determine sprite index based on direction vector and next part direction vector
-                    1,
+                    sprite_index,
                 );
             }
         }
@@ -178,7 +242,7 @@ impl State {
     fn new() -> Self {
         Self {
             food: Food::new(),
-            snake: Snake::new(300, 100),
+            snake: Snake::new(280, 80),
             frame: 0,
             timer: 0.0,
         }
@@ -205,6 +269,7 @@ impl State {
                 VirtualKeyCode::S => self.snake.change_direction(Direction::Down),
                 VirtualKeyCode::A => self.snake.change_direction(Direction::Left),
                 VirtualKeyCode::D => self.snake.change_direction(Direction::Right),
+                VirtualKeyCode::Q => ctx.quitting = true,
                 _ => {}
             }
         }
@@ -216,8 +281,8 @@ impl State {
             self.frame += 1;
 
             if rects_overlap(
-                self.snake.head_pos_x,
-                self.snake.head_pos_y,
+                self.snake.snake_parts[0].x,
+                self.snake.snake_parts[0].y,
                 SPRITE_TILE_SIZE,
                 SPRITE_TILE_SIZE,
                 self.food.pos_x,
@@ -226,7 +291,7 @@ impl State {
                 SPRITE_TILE_SIZE,
             ) {
                 self.food = Food::new();
-                // self.snake.speed += 2;
+                self.snake.grow();
             }
             // snake move
             self.snake.slither();
@@ -341,51 +406,91 @@ fn main() -> BError {
         .with_simple_console_no_bg(80, 50, "terminal8x8.png")
         .with_sprite_sheet(
             SpriteSheet::new("resources/texture.png")
-                .add_sprite(Rect::with_size(0, snake_tile_map.tail_up.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.tail_right.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.tail_left.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.tail_down.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.head_up.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.head_right.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.head_left.pos_y, 40, 40))
-                .add_sprite(Rect::with_size(0, snake_tile_map.head_down.pos_y, 40, 40))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.tail_up.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.tail_right.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.tail_left.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.tail_down.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.head_up.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.head_right.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.head_left.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
+                .add_sprite(Rect::with_size(
+                    0,
+                    snake_tile_map.head_down.pos_y,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
+                ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_vertical.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_topright.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_topleft.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_horizontal.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_bottomright.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
                 .add_sprite(Rect::with_size(
                     0,
                     snake_tile_map.body_bottomleft.pos_y,
-                    40,
-                    40,
+                    SPRITE_TILE_SIZE,
+                    SPRITE_TILE_SIZE,
                 ))
-                .add_sprite(Rect::with_size(0, 560, 40, 40)),
+                .add_sprite(Rect::with_size(0, 560, SPRITE_TILE_SIZE, SPRITE_TILE_SIZE)),
         )
         .with_vsync(false)
         .build()?;

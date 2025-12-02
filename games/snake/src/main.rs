@@ -229,6 +229,7 @@ impl Snake {
 //   Playing,
 //   End,
 //   Menu
+//   Pause
 // }
 
 struct State {
